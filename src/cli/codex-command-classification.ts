@@ -83,8 +83,7 @@ type CodexCommandToken = {
   index: number
 }
 
-function tokenizeLeadingShellWords(command: string, limit: number): string[] {
-  const tokens: string[] = []
+function* tokenizeLeadingShellWords(command: string): Generator<string> {
   let current = ''
   let quote: '"' | "'" | null = null
 
@@ -104,10 +103,7 @@ function tokenizeLeadingShellWords(command: string, limit: number): string[] {
     }
     if (/\s/.test(ch)) {
       if (current) {
-        tokens.push(current)
-        if (tokens.length >= limit) {
-          return tokens
-        }
+        yield current
         current = ''
       }
       continue
@@ -115,10 +111,9 @@ function tokenizeLeadingShellWords(command: string, limit: number): string[] {
     current += ch
   }
 
-  if (current && tokens.length < limit) {
-    tokens.push(current)
+  if (current) {
+    yield current
   }
-  return tokens
 }
 
 function commandBasename(command: string): string {
@@ -138,31 +133,47 @@ function isShellAssignment(token: string): boolean {
   return /^[A-Za-z_][A-Za-z0-9_]*=/.test(token)
 }
 
-function stripShellLaunchPrefix(tokens: string[]): string[] {
-  const remaining = [...tokens]
-  while (remaining[0] && isShellAssignment(remaining[0])) {
-    remaining.shift()
-  }
-  if (remaining[0] && commandBasename(remaining[0]) === 'env') {
-    remaining.shift()
-    while (remaining[0]) {
-      const token = remaining[0]
+function stripShellLaunchPrefix(tokens: Iterable<string>): string[] {
+  const remaining: string[] = []
+  let prefix: 'assignments' | 'exec' | 'env' | 'command' = 'assignments'
+  let skipUnsetValue = false
+
+  for (const token of tokens) {
+    if (prefix === 'assignments') {
       if (isShellAssignment(token)) {
-        remaining.shift()
+        continue
+      }
+      if (token === 'exec') {
+        prefix = 'exec'
+        continue
+      }
+    }
+    if (prefix === 'assignments' || prefix === 'exec') {
+      prefix = commandBasename(token) === 'env' ? 'env' : 'command'
+      if (prefix === 'env') {
+        continue
+      }
+    }
+    if (prefix === 'env') {
+      if (skipUnsetValue) {
+        skipUnsetValue = false
+        continue
+      }
+      if (isShellAssignment(token)) {
         continue
       }
       if (token === '-u' || token === '--unset') {
-        remaining.splice(0, 2)
-        continue
-      }
-      if (token.startsWith('--unset=')) {
-        remaining.shift()
+        skipUnsetValue = true
         continue
       }
       if (token.startsWith('-')) {
-        remaining.shift()
         continue
       }
+      prefix = 'command'
+    }
+    remaining.push(token)
+    // Why: bound provider argv scanning without counting environment assignments.
+    if (remaining.length >= 32) {
       break
     }
   }
@@ -273,9 +284,7 @@ export function shouldUseRendererBackedCodexTerminal(command: string | undefined
     return false
   }
 
-  const tokens = stripShellLaunchPrefix(
-    tokenizeLeadingShellWords(command.trim(), 32).filter((token) => token.length > 0)
-  )
+  const tokens = stripShellLaunchPrefix(tokenizeLeadingShellWords(command.trim()))
 
   const executable = tokens[0] ? commandBasename(tokens[0]) : ''
   if (!isCodexExecutable(executable)) {
@@ -290,9 +299,7 @@ export function shouldUseRendererBackedInteractiveTerminal(command: string | und
     return false
   }
 
-  const tokens = stripShellLaunchPrefix(
-    tokenizeLeadingShellWords(command.trim(), 32).filter((token) => token.length > 0)
-  )
+  const tokens = stripShellLaunchPrefix(tokenizeLeadingShellWords(command.trim()))
 
   const executable = tokens[0] ? commandBasename(tokens[0]) : ''
   if (isCodexExecutable(executable)) {
