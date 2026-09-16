@@ -83,7 +83,11 @@ describe('shell launch prefixes', () => {
     ['/opt/exec codex', false],
     ['exec -a codex bash', false],
     ['exec exec codex', false],
-    ['exec AGENT_NICK=sa codex', false]
+    ['exec AGENT_NICK=sa codex', false],
+    [String.raw`"C:\Program Files\Codex\codex.exe" --model gpt-5.6-sol`, true],
+    [String.raw`"C:\Program Files\Codex\codex.exe" exec summarize`, false],
+    [String.raw`"C:\Program Files\Codex\codex.cmd" --model gpt-5.6-sol`, true],
+    [String.raw`"C:\Program Files\Codex\codex.cmd" review`, false]
   ])('classifies %s as renderer-backed=%s', (command, expected) => {
     expect(shouldUseRendererBackedCodexTerminal(command)).toBe(expected)
     expect(shouldUseRendererBackedInteractiveTerminal(command)).toBe(expected)
@@ -114,5 +118,27 @@ describe('shell launch prefixes', () => {
     expect(
       shouldUseRendererBackedInteractiveTerminal(`exec env ${environment}codex exec summarize`)
     ).toBe(false)
+  })
+})
+
+describe('provider argv scan boundary', () => {
+  it('reads the 32nd provider token after environment assignments', () => {
+    const options = '--enable feature '.repeat(15)
+    expect(
+      shouldUseRendererBackedCodexTerminal(`exec env AGENT_DUMMY=x codex ${options}--help`)
+    ).toBe(false)
+    expect(
+      shouldUseRendererBackedInteractiveTerminal(`exec env AGENT_DUMMY=x codex ${options}--help`)
+    ).toBe(false)
+  })
+
+  it('preserves the existing ceiling after 32 provider tokens', () => {
+    const options = '--enable feature '.repeat(16)
+    expect(
+      shouldUseRendererBackedCodexTerminal(`exec env AGENT_DUMMY=x codex ${options}--help`)
+    ).toBe(true)
+    expect(
+      shouldUseRendererBackedInteractiveTerminal(`exec env AGENT_DUMMY=x codex ${options}--help`)
+    ).toBe(true)
   })
 })
