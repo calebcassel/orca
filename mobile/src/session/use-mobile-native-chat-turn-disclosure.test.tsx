@@ -204,4 +204,48 @@ describe('useMobileNativeChatTurnDisclosure', () => {
       vi.useRealTimers()
     }
   })
+
+  // A tool call's `state` is a latch the provider may never revise, so only the
+  // turn's newest row can carry a live tool label.
+  it("marks only the working turn's newest row as its activity frontier", () => {
+    const messages: NativeChatMessage[] = [
+      userMessage('u1'),
+      {
+        id: 'stranded',
+        role: 'assistant',
+        blocks: [
+          { type: 'tool-call', name: 'search', input: { query: 'AGENTS.md' }, state: 'running' }
+        ],
+        timestamp: null,
+        source: 'transcript'
+      },
+      {
+        id: 'latest',
+        role: 'assistant',
+        blocks: [{ type: 'text', text: 'moved on' }],
+        timestamp: null,
+        source: 'transcript'
+      }
+    ]
+
+    act(() => {
+      renderer = create(createElement(Harness, { messages, enabled: true }))
+    })
+
+    const disclosure = renderer!.root.findByType('result').props.disclosure
+    expect(
+      messages.map((message, index) => disclosure.resolveRow(index, message).isTurnActivityFrontier)
+    ).toEqual([false, false, true])
+  })
+
+  it('names no frontier once the turn stops working', () => {
+    const messages: NativeChatMessage[] = [userMessage('u1')]
+
+    act(() => {
+      renderer = create(createElement(Harness, { messages, enabled: true, isWorking: false }))
+    })
+
+    const disclosure = renderer!.root.findByType('result').props.disclosure
+    expect(disclosure.resolveRow(0, messages[0]).isTurnActivityFrontier).toBe(false)
+  })
 })

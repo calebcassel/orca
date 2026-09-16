@@ -115,13 +115,16 @@ export function useMobileNativeChatTurnDisclosure({
   // The working turn's newest row. Rows above it were superseded by the activity
   // that followed, which is what holds the turn to one live row.
   const frontierIndex = useMemo(() => {
+    if (!enabled || !isWorking) {
+      return -1
+    }
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       if (rowIsInWorkingTurn(index)) {
         return index
       }
     }
     return -1
-  }, [messages, rowIsInWorkingTurn])
+  }, [enabled, isWorking, messages, rowIsInWorkingTurn])
   const resolveRow = useCallback(
     (index: number, message: NativeChatMessage): MobileNativeChatTurnRow => {
       const turnKey = turnKeys[index]
