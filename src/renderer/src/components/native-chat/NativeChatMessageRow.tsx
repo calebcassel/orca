@@ -33,6 +33,7 @@ export const MessageRow = memo(function MessageRow({
   revealedDiff,
   expandSignal,
   activeTurnIsWorking,
+  isTurnActivityFrontier,
   onScrollMessageToTop,
   onLinkClick,
   allowFileUriLinks = false,
@@ -47,6 +48,7 @@ export const MessageRow = memo(function MessageRow({
   revealedDiff?: NativeChatDiffReveal
   expandSignal: boolean
   activeTurnIsWorking?: boolean
+  isTurnActivityFrontier?: boolean
   /** Align this message's top to the top of the scroll viewport. */
   onScrollMessageToTop: (el: HTMLElement) => void
   onLinkClick?: CommentMarkdownLinkClickHandler
@@ -195,6 +197,7 @@ export const MessageRow = memo(function MessageRow({
           expandSignal={expandSignal}
           expandOverride={activityExpandOverride}
           activeTurnIsWorking={activeTurnIsWorking}
+          isTurnActivityFrontier={isTurnActivityFrontier}
           structuredActivityUi={structuredActivityUi}
           disclosureId={message.id}
         />

@@ -67,27 +67,36 @@ export function formatActiveToolLabel(descriptor: NativeChatActiveToolDescriptor
     .replaceAll('{{toolName}}', descriptor.toolName)
 }
 
-/** The most recent still-running call in a run, or null once the run is settled.
+/** The call this run is inside right now: its newest one, and only while that call
+ *  is still running.
+ *
+ *  `state` is a latch the provider revises once its result lands, so a lost result
+ *  or a turn that never reaches its end boundary leaves `running` set forever. The
+ *  live row cannot be read off that latch alone: "what is this agent doing now" is
+ *  answered by the turn's newest activity, and an older call the agent has already
+ *  worked past is history however it is still labelled.
+ *
  *  A block without lifecycle `state` only counts while the turn is known to be
  *  working, so a restored transcript never spins on an orphaned call. */
 export function selectActiveToolCall(
   blocks: readonly NativeChatBlock[],
-  { activeTurnIsWorking }: { activeTurnIsWorking?: boolean }
+  {
+    activeTurnIsWorking,
+    isTurnActivityFrontier
+  }: { activeTurnIsWorking?: boolean; isTurnActivityFrontier?: boolean }
 ): NativeChatToolCallBlock | null {
-  if (activeTurnIsWorking === false) {
+  // The frontier is the working turn's newest row. Rows above it were superseded by
+  // the activity that followed, which is what holds the turn to one live row.
+  if (activeTurnIsWorking === false || isTurnActivityFrontier === false) {
     return null
   }
-  const calls = blocks.filter(isToolCallBlock)
-  for (let index = calls.length - 1; index >= 0; index--) {
-    const call = calls[index]
-    if (
-      call &&
-      (call.state === 'running' || (call.state == null && activeTurnIsWorking === true))
-    ) {
-      return call
-    }
+  const newest = blocks.findLast(isToolCallBlock)
+  if (!newest) {
+    return null
   }
-  return null
+  return newest.state === 'running' || (newest.state == null && activeTurnIsWorking === true)
+    ? newest
+    : null
 }
 
 /** Fallback summary when no per-tool summary is available. */

@@ -138,6 +138,113 @@ describe('NativeChatMessageList turn indicator', () => {
     expect(spinner).toHaveClass('animate-spin', 'motion-reduce:animate-none')
   })
 
+  // A provider revises a tool call's `state` when its result lands. That result can be
+  // lost, and a long turn may never reach the end boundary that sweeps what is left
+  // running — so the live row cannot be read off that latch alone.
+  it('settles a stranded running call once the turn has worked past it', () => {
+    const { container } = render(
+      <NativeChatMessageList
+        session={{
+          ...session,
+          status: 'working',
+          messages: [
+            {
+              id: 'user-1',
+              role: 'user',
+              blocks: [{ type: 'text', text: 'Review the branch' }],
+              timestamp: 1,
+              source: 'transcript'
+            },
+            {
+              id: 'assistant-stranded',
+              role: 'assistant',
+              blocks: [
+                {
+                  type: 'tool-call',
+                  name: 'search',
+                  input: { query: 'AGENTS.md' },
+                  state: 'running'
+                }
+              ],
+              timestamp: 2,
+              source: 'transcript'
+            },
+            {
+              id: 'assistant-prose',
+              role: 'assistant',
+              blocks: [{ type: 'text', text: 'The branch is a contract-only change.' }],
+              timestamp: 3,
+              source: 'transcript'
+            },
+            {
+              id: 'assistant-later',
+              role: 'assistant',
+              blocks: [
+                {
+                  type: 'tool-call',
+                  name: 'shell',
+                  input: { command: 'git status' },
+                  state: 'completed'
+                }
+              ],
+              timestamp: 4,
+              source: 'transcript'
+            }
+          ]
+        }}
+        isWorking
+        expandSignal={false}
+        fontScale={1}
+      />
+    )
+
+    expect(screen.queryByText('Running search AGENTS.md')).toBeNull()
+    // The turn is still working, so its one live indicator stays at the tail.
+    expect(container.querySelectorAll('.animate-pulse')).toHaveLength(0)
+    expect(screen.getByText('Working for 0s')).toBeInTheDocument()
+  })
+
+  // A batch the agent launched together is still what it is doing, even though only
+  // the newest of them can carry the row.
+  it('keeps the newest call of a live parallel batch on the row', () => {
+    render(
+      <NativeChatMessageList
+        session={{
+          ...session,
+          status: 'working',
+          messages: [
+            {
+              id: 'assistant-batch',
+              role: 'assistant',
+              blocks: [
+                {
+                  type: 'tool-call',
+                  name: 'shell',
+                  input: { command: 'task-create a' },
+                  state: 'running'
+                },
+                {
+                  type: 'tool-call',
+                  name: 'shell',
+                  input: { command: 'task-create b' },
+                  state: 'running'
+                }
+              ],
+              timestamp: 1,
+              source: 'transcript'
+            }
+          ]
+        }}
+        isWorking
+        expandSignal={false}
+        fontScale={1}
+      />
+    )
+
+    expect(screen.getByText('Running task-create b')).toHaveClass('animate-pulse')
+    expect(screen.queryByText('Running task-create a')).toBeNull()
+  })
+
   it('hides foreground turn activity without settling live tool state', () => {
     const { container } = render(
       <NativeChatMessageList

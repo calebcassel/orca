@@ -50,6 +50,7 @@ export function NativeChatToolRun({
   subagentGroups = NO_SUBAGENT_GROUPS,
   expandSignal,
   activeTurnIsWorking,
+  isTurnActivityFrontier,
   expandOverride,
   structuredActivityUi = true,
   disclosureId,
@@ -68,6 +69,8 @@ export function NativeChatToolRun({
   expandOverride?: boolean
   /** Structured lifecycle state, when available, keeps orphaned running calls from spinning. */
   activeTurnIsWorking?: boolean
+  /** This run sits at the working turn's newest row, so its tools can read as live. */
+  isTurnActivityFrontier?: boolean
   structuredActivityUi?: boolean
   /** Message this run belongs to. Windowing unmounts rows, so a run the reader
    *  opened has to be remembered somewhere that outlives the row. */
@@ -119,9 +122,11 @@ export function NativeChatToolRun({
     })
   })()
   const headerActiveCall = structuredActivityUi
-    ? selectActiveToolCall(headerBlocks, { activeTurnIsWorking })
+    ? selectActiveToolCall(headerBlocks, { activeTurnIsWorking, isTurnActivityFrontier })
     : null
   const isSettled = headerActiveCall == null
+  // An unanswered ask blocks the agent where it stands, so it stays pending on its
+  // own row rather than being superseded by whatever the turn drew after it.
   const askIsActive = selectActiveToolCall(unansweredAsks, { activeTurnIsWorking }) !== null
   const hasRunningCall = headerBlocks.some(
     (block) => isToolCallBlock(block) && block.state === 'running'

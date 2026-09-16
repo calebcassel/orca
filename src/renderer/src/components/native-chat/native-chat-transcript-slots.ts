@@ -22,6 +22,8 @@ export type NativeChatTranscriptSlot = {
   turnKey: string | undefined
   /** The row's own turn is the one still running, so its tools stay live. */
   activeTurnIsWorking: boolean
+  /** The newest row of that turn, and so the only one whose tools can read as live. */
+  isTurnActivityFrontier: boolean
   /** Resolved approval/question stands in for the message it answered. */
   receipt: NativeChatResolvedPrompt | undefined
   /** Turn timing shown under this row, already filtered to "should render". */
@@ -86,6 +88,8 @@ export function buildNativeChatTranscriptSlots(
       activeTurnIsWorking:
         (currentTurnKey ? turnKey === currentTurnKey : turnKey === undefined) &&
         (isWorking || lifecycleWorking),
+      // Resolved below, once the turn's last drawn row is known.
+      isTurnActivityFrontier: false,
       receipt,
       status: status ?? undefined,
       turnDiff,
@@ -95,6 +99,14 @@ export function buildNativeChatTranscriptSlots(
         hasTurnDiff: turnDiff !== undefined
       })
     })
+  }
+  // Only the working turn's last drawn row is its activity frontier. Rows are
+  // appended in order, so that is the final slot the turn contributed — a row the
+  // reader can see, since a message that draws nothing never took a slot.
+  const frontier = slots.findLastIndex((slot) => slot.activeTurnIsWorking)
+  const frontierSlot = frontier === -1 ? undefined : slots[frontier]
+  if (frontierSlot) {
+    frontierSlot.isTurnActivityFrontier = true
   }
   return slots
 }

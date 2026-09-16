@@ -91,6 +91,38 @@ describe('selectActiveToolCall', () => {
     expect(selectActiveToolCall(blocks, { activeTurnIsWorking: undefined })?.name).toBe('Bash')
   })
 
+  // `state` is a latch the provider revises when the result lands. A lost result, or
+  // a turn that never reaches its end boundary, leaves it reading `running` forever.
+  it('drops a running call the run has already worked past', () => {
+    const blocks = [
+      call('shell', { command: 'orca task-create' }, 'running'),
+      call('shell', { command: 'git status' }, 'completed')
+    ]
+    expect(selectActiveToolCall(blocks, { activeTurnIsWorking: true })).toBeNull()
+  })
+
+  it('keeps a parallel batch live through its newest call', () => {
+    const blocks = [
+      call('shell', { command: 'a' }, 'running'),
+      call('shell', { command: 'b' }, 'running'),
+      call('shell', { command: 'c' }, 'running')
+    ]
+    expect(selectActiveToolCall(blocks, { activeTurnIsWorking: true })?.input).toEqual({
+      command: 'c'
+    })
+  })
+
+  it('reports nothing for a run the turn has drawn past, however it is labelled', () => {
+    const blocks = [call('search', { query: 'AGENTS.md' }, 'running')]
+    expect(
+      selectActiveToolCall(blocks, { activeTurnIsWorking: true, isTurnActivityFrontier: false })
+    ).toBeNull()
+    expect(
+      selectActiveToolCall(blocks, { activeTurnIsWorking: true, isTurnActivityFrontier: true })
+        ?.name
+    ).toBe('search')
+  })
+
   it('skips non-tool-call blocks', () => {
     const blocks: NativeChatBlock[] = [
       { type: 'text', text: 'hello' },

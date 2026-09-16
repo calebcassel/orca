@@ -17,6 +17,8 @@ export type MobileNativeChatTurnRow = {
   /** Set only on a settled turn — the one row that has activity to disclose. */
   turnKey?: string
   activeTurnIsWorking: boolean
+  /** The newest row of that turn, and so the only one whose tools can read as live. */
+  isTurnActivityFrontier: boolean
 }
 
 /** Owns the transcript's per-turn status rows and their disclosure state, and
@@ -101,6 +103,25 @@ export function useMobileNativeChatTurnDisclosure({
 
   const { active, activeTurnKey, completedByTurn } = turnStatuses
   const activeActivityText = enabled && isWorking ? (activityText ?? null) : null
+  // With no user boundary at all, the session's working state stays authoritative.
+  const rowIsInWorkingTurn = useCallback(
+    (index: number): boolean =>
+      enabled &&
+      isWorking &&
+      (turnKeys[index] === activeTurnKey ||
+        (turnKeys[index] === undefined && activeTurnKey === MOBILE_UNANCHORED_TURN_KEY)),
+    [enabled, isWorking, turnKeys, activeTurnKey]
+  )
+  // The working turn's newest row. Rows above it were superseded by the activity
+  // that followed, which is what holds the turn to one live row.
+  const frontierIndex = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (rowIsInWorkingTurn(index)) {
+        return index
+      }
+    }
+    return -1
+  }, [messages, rowIsInWorkingTurn])
   const resolveRow = useCallback(
     (index: number, message: NativeChatMessage): MobileNativeChatTurnRow => {
       const turnKey = turnKeys[index]
@@ -118,15 +139,11 @@ export function useMobileNativeChatTurnDisclosure({
         // transcript, defeating the row's memo; caching one per turn would mean
         // writing a ref during render, which react-freeze can discard.
         turnKey: turnKey && turnStatus?.workedSeconds != null ? turnKey : undefined,
-        // With no user boundary at all, the session's working state stays authoritative.
-        activeTurnIsWorking:
-          enabled &&
-          isWorking &&
-          (turnKey === activeTurnKey ||
-            (turnKey === undefined && activeTurnKey === MOBILE_UNANCHORED_TURN_KEY))
+        activeTurnIsWorking: rowIsInWorkingTurn(index),
+        isTurnActivityFrontier: index === frontierIndex
       }
     },
-    [turnKeys, enabled, activeTurnKey, completedByTurn, expandedTurnIds, isWorking]
+    [turnKeys, enabled, completedByTurn, expandedTurnIds, rowIsInWorkingTurn, frontierIndex]
   )
 
   return {

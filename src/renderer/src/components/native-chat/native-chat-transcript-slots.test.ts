@@ -94,6 +94,39 @@ describe('transcript slots', () => {
     expect(slots[0]?.status).toBeUndefined()
   })
 
+  // One live row per turn: the frontier is what the agent is doing now, and every
+  // row above it has been superseded by the activity that followed.
+  it('marks only the newest drawn row of the working turn as its activity frontier', () => {
+    const slots = build([text('a', 'first'), text('b', 'second'), text('c', 'third')], {
+      isWorking: true
+    })
+    expect(slots.map((slot) => slot.isTurnActivityFrontier)).toEqual([false, false, true])
+  })
+
+  it('skips a row that draws nothing when picking the frontier', () => {
+    const slots = build([text('a', 'first'), text('blank', '')], { isWorking: true })
+    expect(slots.map((slot) => [slot.message.id, slot.isTurnActivityFrontier])).toEqual([
+      ['a', true]
+    ])
+  })
+
+  it('names no frontier once the turn stops working', () => {
+    const slots = build([text('a', 'first'), text('b', 'second')])
+    expect(slots.every((slot) => !slot.isTurnActivityFrontier)).toBe(true)
+  })
+
+  it('keeps the frontier inside the working turn, not on an earlier one', () => {
+    const slots = build(
+      [text('old', 'earlier turn'), text('u', 'next question', 'user'), text('new', 'latest')],
+      { currentTurnKey: 'u', isWorking: true }
+    )
+    expect(slots.map((slot) => [slot.message.id, slot.isTurnActivityFrontier])).toEqual([
+      ['old', false],
+      ['u', false],
+      ['new', true]
+    ])
+  })
+
   it('reserves a height for every slot it keeps', () => {
     for (const slot of build([text('a', 'one'), text('b', 'two\nlines')])) {
       expect(slot.estimatedHeight).toBeGreaterThan(0)

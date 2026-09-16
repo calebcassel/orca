@@ -75,6 +75,7 @@ function MobileNativeChatMessageImpl({
   turnKey,
   onToggleTurn,
   activeTurnIsWorking,
+  isTurnActivityFrontier,
   structuredActivityUi = false
 }: {
   message: NativeChatMessage
@@ -92,6 +93,8 @@ function MobileNativeChatMessageImpl({
   onToggleTurn?: (turnKey: string) => void
   /** Session-level working state for this message's turn; gates the live tool row. */
   activeTurnIsWorking?: boolean
+  /** This row is the working turn's newest, so its tools can read as live. */
+  isTurnActivityFrontier?: boolean
   /** Structured lane only: live tool progress plus the turn-status disclosure. */
   structuredActivityUi?: boolean
 }): React.JSX.Element {
@@ -102,7 +105,7 @@ function MobileNativeChatMessageImpl({
   // an inverted (filled accent) bubble so they stand apart from agent prose.
   const { prose, tools } = splitNativeChatBlocks(message.blocks)
   const activeCall = structuredActivityUi
-    ? selectActiveToolCall(tools, { activeTurnIsWorking })
+    ? selectActiveToolCall(tools, { activeTurnIsWorking, isTurnActivityFrontier })
     : null
   // A completed turn's activity belongs behind the turn-status caret. Leaving the
   // grouped row visible made a failed child command read as a failed response.

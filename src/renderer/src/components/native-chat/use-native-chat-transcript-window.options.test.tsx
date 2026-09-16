@@ -52,6 +52,7 @@ function slot(id: string): NativeChatTranscriptSlot {
     },
     turnKey: undefined,
     activeTurnIsWorking: false,
+    isTurnActivityFrontier: false,
     receipt: undefined,
     status: undefined,
     turnDiff: undefined,
