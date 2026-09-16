@@ -70,23 +70,29 @@ describe('shouldUseRendererBackedInteractiveTerminal', () => {
 
 describe('shell launch prefixes', () => {
   it.each([
-    ['exec codex --model gpt-5.6-sol -c model_reasoning_effort=xhigh', true],
-    ['exec env AGENT_NICK=sa /home/caleb/bin/codex --model gpt-5.6-sol', true],
-    ['AGENT_NICK=sa exec env -u DEBUG codex resume --last', true],
-    ['exec env AGENT_LABEL="Factory agent" "/opt/agent tools/codex" --model gpt-5.6-sol', true],
-    ['exec env AGENT_NICK=sa codex exec summarize', false],
-    ['exec env AGENT_NICK=sa codex -m gpt-5.6-sol review', false],
-    ['exec env AGENT_NICK=sa codex --help', false],
+    ['exec codex --model gpt-5 -c model_reasoning_effort=xhigh', true],
+    ['exec env AGENT_NAME=example /usr/local/bin/codex --model gpt-5', true],
+    ['AGENT_NAME=example exec env -u DEBUG codex resume --last', true],
+    ['exec env AGENT_LABEL="Coding agent" "/opt/agent tools/codex" --model gpt-5', true],
+    ['exec env AGENT_NAME=example codex exec summarize', false],
+    ['exec env AGENT_NAME=example codex -m gpt-5 review', false],
+    ['exec env AGENT_NAME=example codex --help', false],
     ['bash -lc "codex"', false],
     ['exec bash -lc "codex"', false],
     ['npm exec codex', false],
     ['/opt/exec codex', false],
     ['exec -a codex bash', false],
     ['exec exec codex', false],
-    ['exec AGENT_NICK=sa codex', false],
-    [String.raw`"C:\Program Files\Codex\codex.exe" --model gpt-5.6-sol`, true],
+    ['exec AGENT_NAME=example codex', false],
+    ['exec', false],
+    ['exec env', false],
+    ['env -u DEBUG', false],
+    ['AGENT_NAME=example exec env', false],
+    ['exec env --unset DEBUG codex --model gpt-5', true],
+    ['exec env --unset=DEBUG codex exec summarize', false],
+    [String.raw`"C:\Program Files\Codex\codex.exe" --model gpt-5`, true],
     [String.raw`"C:\Program Files\Codex\codex.exe" exec summarize`, false],
-    [String.raw`"C:\Program Files\Codex\codex.cmd" --model gpt-5.6-sol`, true],
+    [String.raw`"C:\Program Files\Codex\codex.cmd" --model gpt-5`, true],
     [String.raw`"C:\Program Files\Codex\codex.cmd" review`, false]
   ])('classifies %s as renderer-backed=%s', (command, expected) => {
     expect(shouldUseRendererBackedCodexTerminal(command)).toBe(expected)
@@ -94,31 +100,37 @@ describe('shell launch prefixes', () => {
   })
 
   it.each([
-    ['exec env AGENT_NICK=sa claude --model sonnet', true],
-    ['exec env AGENT_NICK=sa claude --print summarize', false]
+    ['exec env AGENT_NAME=example claude --model sonnet', true],
+    ['exec env AGENT_NAME=example claude --print summarize', false]
   ])('classifies Claude launch %s as renderer-backed=%s', (command, expected) => {
     expect(shouldUseRendererBackedInteractiveTerminal(command)).toBe(expected)
   })
 
-  it('recognizes Codex after more than 32 environment assignments', () => {
-    const environment = 'AGENT_DUMMY=x '.repeat(40)
-    expect(
-      shouldUseRendererBackedCodexTerminal(`exec env ${environment}codex --model gpt-5.6-sol`)
-    ).toBe(true)
-    expect(
-      shouldUseRendererBackedInteractiveTerminal(`exec env ${environment}codex --model gpt-5.6-sol`)
-    ).toBe(true)
-  })
+  it.each(['exec env', 'env', ''])(
+    'recognizes Codex after more than 32 assignments with prefix %s',
+    (prefix) => {
+      const environment = 'AGENT_DUMMY=x '.repeat(40)
+      expect(
+        shouldUseRendererBackedCodexTerminal(`${prefix} ${environment}codex --model gpt-5`)
+      ).toBe(true)
+      expect(
+        shouldUseRendererBackedInteractiveTerminal(`${prefix} ${environment}codex --model gpt-5`)
+      ).toBe(true)
+    }
+  )
 
-  it('keeps a headless Codex command after many assignments on the background path', () => {
-    const environment = 'AGENT_DUMMY=x '.repeat(40)
-    expect(
-      shouldUseRendererBackedCodexTerminal(`exec env ${environment}codex exec summarize`)
-    ).toBe(false)
-    expect(
-      shouldUseRendererBackedInteractiveTerminal(`exec env ${environment}codex exec summarize`)
-    ).toBe(false)
-  })
+  it.each(['exec env', 'env', ''])(
+    'keeps a one-task Codex command in the background with prefix %s',
+    (prefix) => {
+      const environment = 'AGENT_DUMMY=x '.repeat(40)
+      expect(
+        shouldUseRendererBackedCodexTerminal(`${prefix} ${environment}codex exec summarize`)
+      ).toBe(false)
+      expect(
+        shouldUseRendererBackedInteractiveTerminal(`${prefix} ${environment}codex exec summarize`)
+      ).toBe(false)
+    }
+  )
 })
 
 describe('provider argv scan boundary', () => {

@@ -83,7 +83,7 @@ type CodexCommandToken = {
   index: number
 }
 
-function* tokenizeLeadingShellWords(command: string): Generator<string> {
+function* tokenizeLeadingShellWords(command: string): Generator<string, void> {
   let current = ''
   let quote: '"' | "'" | null = null
 
@@ -133,49 +133,34 @@ function isShellAssignment(token: string): boolean {
   return /^[A-Za-z_][A-Za-z0-9_]*=/.test(token)
 }
 
-function stripShellLaunchPrefix(tokens: Iterable<string>): string[] {
-  const remaining: string[] = []
-  let prefix: 'assignments' | 'exec' | 'env' | 'command' = 'assignments'
-  let skipUnsetValue = false
-
-  for (const token of tokens) {
-    if (prefix === 'assignments') {
-      if (isShellAssignment(token)) {
-        continue
-      }
-      if (token === 'exec') {
-        prefix = 'exec'
-        continue
-      }
-    }
-    if (prefix === 'assignments' || prefix === 'exec') {
-      prefix = commandBasename(token) === 'env' ? 'env' : 'command'
-      if (prefix === 'env') {
-        continue
-      }
-    }
-    if (prefix === 'env') {
-      if (skipUnsetValue) {
-        skipUnsetValue = false
-        continue
-      }
-      if (isShellAssignment(token)) {
-        continue
-      }
+function stripShellLaunchPrefix(tokens: Generator<string, void>): string[] {
+  let token = tokens.next().value
+  while (token && isShellAssignment(token)) {
+    token = tokens.next().value
+  }
+  if (token === 'exec') {
+    token = tokens.next().value
+  }
+  if (token && commandBasename(token) === 'env') {
+    token = tokens.next().value
+    while (token) {
       if (token === '-u' || token === '--unset') {
-        skipUnsetValue = true
-        continue
+        tokens.next()
+      } else if (!isShellAssignment(token) && !token.startsWith('-')) {
+        break
       }
-      if (token.startsWith('-')) {
-        continue
-      }
-      prefix = 'command'
+      token = tokens.next().value
     }
+  }
+
+  const remaining: string[] = []
+  while (token) {
     remaining.push(token)
     // Why: bound provider argv scanning without counting environment assignments.
     if (remaining.length >= 32) {
       break
     }
+    token = tokens.next().value
   }
   return remaining
 }
