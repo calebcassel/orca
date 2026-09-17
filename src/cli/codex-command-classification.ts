@@ -83,9 +83,15 @@ type CodexCommandToken = {
   index: number
 }
 
-function* tokenizeLeadingShellWords(command: string): Generator<string, void> {
+type ShellWord = {
+  value: string
+  quoted: boolean
+}
+
+function* tokenizeLeadingShellWords(command: string): Generator<ShellWord, void> {
   let current = ''
   let quote: '"' | "'" | null = null
+  let quoted = false
 
   for (let i = 0; i < command.length; i += 1) {
     const ch = command[i]
@@ -99,12 +105,16 @@ function* tokenizeLeadingShellWords(command: string): Generator<string, void> {
     }
     if (ch === '"' || ch === "'") {
       quote = ch
+      if (!current) {
+        quoted = true
+      }
       continue
     }
     if (/\s/.test(ch)) {
       if (current) {
-        yield current
+        yield { value: current, quoted }
         current = ''
+        quoted = false
       }
       continue
     }
@@ -112,7 +122,7 @@ function* tokenizeLeadingShellWords(command: string): Generator<string, void> {
   }
 
   if (current) {
-    yield current
+    yield { value: current, quoted }
   }
 }
 
@@ -133,20 +143,25 @@ function isShellAssignment(token: string): boolean {
   return /^[A-Za-z_][A-Za-z0-9_]*=/.test(token)
 }
 
-function stripShellLaunchPrefix(tokens: Generator<string, void>): string[] {
+function isUnquotedShellAssignment(token: ShellWord | undefined): boolean {
+  // Why: quoted `NAME=value` is a command name, not a shell assignment.
+  return Boolean(token && !token.quoted && isShellAssignment(token.value))
+}
+
+function stripShellLaunchPrefix(tokens: Generator<ShellWord, void>): string[] {
   let token = tokens.next().value
-  while (token && isShellAssignment(token)) {
+  while (isUnquotedShellAssignment(token)) {
     token = tokens.next().value
   }
-  if (token === 'exec') {
+  if (token?.value === 'exec') {
     token = tokens.next().value
   }
-  if (token && commandBasename(token) === 'env') {
+  if (token && commandBasename(token.value) === 'env') {
     token = tokens.next().value
     while (token) {
-      if (token === '-u' || token === '--unset') {
+      if (token.value === '-u' || token.value === '--unset') {
         tokens.next()
-      } else if (!isShellAssignment(token) && !token.startsWith('-')) {
+      } else if (!isShellAssignment(token.value) && !token.value.startsWith('-')) {
         break
       }
       token = tokens.next().value
@@ -155,7 +170,7 @@ function stripShellLaunchPrefix(tokens: Generator<string, void>): string[] {
 
   const remaining: string[] = []
   while (token) {
-    remaining.push(token)
+    remaining.push(token.value)
     // Why: bound provider argv scanning without counting environment assignments.
     if (remaining.length >= 32) {
       break
