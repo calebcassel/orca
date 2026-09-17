@@ -89,7 +89,7 @@ type ShellWord = {
 }
 
 /** Yields shell words and whether each word started with a quote. */
-function* tokenizeLeadingShellWords(command: string): Generator<ShellWord, void> {
+function* tokenizeLeadingShellWords(command: string): Generator<ShellWord, undefined> {
   let current = ''
   let quote: '"' | "'" | null = null
   let quoted = false
@@ -152,7 +152,7 @@ function isUnquotedShellAssignment(token: ShellWord | undefined): boolean {
 }
 
 /** Drop leading assignments, one `exec`, and `env` argv until the real command. */
-function stripShellLaunchPrefix(tokens: Generator<ShellWord, void>): string[] {
+function stripShellLaunchPrefix(tokens: Generator<ShellWord, undefined>): string[] {
   let token = tokens.next().value
   while (isUnquotedShellAssignment(token)) {
     token = tokens.next().value
