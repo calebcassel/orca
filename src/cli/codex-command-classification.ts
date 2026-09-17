@@ -88,6 +88,7 @@ type ShellWord = {
   quoted: boolean
 }
 
+/** Yields shell words and whether each word started with a quote. */
 function* tokenizeLeadingShellWords(command: string): Generator<ShellWord, void> {
   let current = ''
   let quote: '"' | "'" | null = null
@@ -139,15 +140,18 @@ function isClaudeExecutable(command: string): boolean {
   return command === 'claude' || command === 'claude.exe' || command === 'claude.cmd'
 }
 
+/** True when token is a NAME=value word the shell or env would treat as an assignment. */
 function isShellAssignment(token: string): boolean {
   return /^[A-Za-z_][A-Za-z0-9_]*=/.test(token)
 }
 
+/** True when NAME=value is unquoted, so the shell would apply it as a prefix assignment. */
 function isUnquotedShellAssignment(token: ShellWord | undefined): boolean {
   // Why: quoted `NAME=value` is a command name, not a shell assignment.
   return Boolean(token && !token.quoted && isShellAssignment(token.value))
 }
 
+/** Drop leading assignments, one `exec`, and `env` argv until the real command. */
 function stripShellLaunchPrefix(tokens: Generator<ShellWord, void>): string[] {
   let token = tokens.next().value
   while (isUnquotedShellAssignment(token)) {
@@ -279,6 +283,7 @@ function isNonInteractiveCodexSubcommand(tokens: string[]): boolean {
   return CODEX_NON_INTERACTIVE_SUBCOMMANDS.has(normalizedSubcommand)
 }
 
+/** True when `command` launches interactive Codex, including `exec`/`env` prefixes. */
 export function shouldUseRendererBackedCodexTerminal(command: string | undefined): boolean {
   if (!command) {
     return false
@@ -294,6 +299,7 @@ export function shouldUseRendererBackedCodexTerminal(command: string | undefined
   return !isNonInteractiveCodexSubcommand(tokens)
 }
 
+/** True when `command` launches interactive Codex or Claude, including `exec`/`env` prefixes. */
 export function shouldUseRendererBackedInteractiveTerminal(command: string | undefined): boolean {
   if (!command) {
     return false
